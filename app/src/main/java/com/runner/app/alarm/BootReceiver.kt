@@ -27,6 +27,19 @@ class BootReceiver : BroadcastReceiver() {
                 db.alarmDao().getEnabled().forEach { alarm ->
                     if (alarm.triggerAtMillis > now) {
                         AlarmScheduler.schedule(context, alarm.id, alarm.triggerAtMillis)
+                    } else {
+                        // Time passed while device was offline/off.
+                        if (alarm.daysOfWeek.isNotEmpty() || alarm.repeatDaily) {
+                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = alarm.triggerAtMillis }
+                            val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                            val minute = cal.get(java.util.Calendar.MINUTE)
+                            val days = if (alarm.daysOfWeek.isEmpty() && alarm.repeatDaily) "1,2,3,4,5,6,7" else alarm.daysOfWeek
+                            val next = AlarmScheduler.calculateNextTriggerTime(hour, minute, days)
+                            db.alarmDao().insert(alarm.copy(triggerAtMillis = next))
+                            AlarmScheduler.schedule(context, alarm.id, next)
+                        } else {
+                            db.alarmDao().setEnabled(alarm.id, false)
+                        }
                     }
                 }
             } finally {

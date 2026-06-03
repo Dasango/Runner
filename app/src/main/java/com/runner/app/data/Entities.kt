@@ -19,7 +19,13 @@ data class AlarmEntity(
     val scriptId: Long,
     val triggerAtMillis: Long,
     val enabled: Boolean = true,
-    val repeatDaily: Boolean = false
+    val repeatDaily: Boolean = false,
+    val daysOfWeek: String = "", // Comma-separated days of week (1=Sunday, 2=Monday, ..., 7=Saturday). Empty means one-time.
+    val internetFallback: Boolean = false,
+    val fallbackRetryLimitMinutes: Int = -1, // -1 means infinite, otherwise e.g. 30 minutes
+    val pendingFallback: Boolean = false,
+    val fallbackScheduledTime: Long = 0L,
+    val fallbackRetryCount: Int = 0
 )
 
 @Entity(tableName = "execution_logs")

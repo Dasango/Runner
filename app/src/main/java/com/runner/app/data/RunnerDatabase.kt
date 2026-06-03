@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ScriptEntity::class, AlarmEntity::class, ExecutionLogEntity::class],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class RunnerDatabase : RoomDatabase() {
@@ -25,7 +25,9 @@ abstract class RunnerDatabase : RoomDatabase() {
                     context.applicationContext,
                     RunnerDatabase::class.java,
                     "runner.db"
-                ).build().also { instance = it }
+                )
+                .fallbackToDestructiveMigration()
+                .build().also { instance = it }
             }
         }
     }

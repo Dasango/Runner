@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,7 +40,7 @@ import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlarmsScreen(viewModel: RunnerViewModel, onCreateAlarm: () -> Unit) {
+fun AlarmsScreen(viewModel: RunnerViewModel, onCreateAlarm: () -> Unit, onEditAlarm: (Long) -> Unit) {
     val alarms by viewModel.alarms.collectAsState()
     val scripts by viewModel.scripts.collectAsState()
     val context = LocalContext.current
@@ -87,6 +88,7 @@ fun AlarmsScreen(viewModel: RunnerViewModel, onCreateAlarm: () -> Unit) {
                         scriptName = scriptName,
                         timeText = DateFormat.format("dd/MM HH:mm", Date(alarm.triggerAtMillis)).toString(),
                         onToggle = { viewModel.toggleAlarm(alarm, it) },
+                        onEdit = { onEditAlarm(alarm.id) },
                         onDelete = { viewModel.deleteAlarm(alarm) }
                     )
                 }
@@ -102,6 +104,7 @@ private fun AlarmCard(
     scriptName: String,
     timeText: String,
     onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -118,11 +121,32 @@ private fun AlarmCard(
                 Text(alarm.name, fontWeight = FontWeight.Bold)
                 Text("Script: $scriptName", style = MaterialTheme.typography.bodySmall)
                 Text("Hora: $timeText", style = MaterialTheme.typography.bodySmall)
-                if (alarm.repeatDaily) {
-                    Text("Repetir diario", style = MaterialTheme.typography.labelSmall)
+                
+                val daysOfWeekText = if (alarm.daysOfWeek.isNotEmpty()) {
+                    val daysMap = mapOf(
+                        1 to "Dom", 2 to "Lun", 3 to "Mar", 4 to "Mié",
+                        5 to "Jue", 6 to "Vie", 7 to "Sáb"
+                    )
+                    alarm.daysOfWeek.split(",")
+                        .mapNotNull { it.trim().toIntOrNull() }
+                        .mapNotNull { daysMap[it] }
+                        .joinToString(", ")
+                } else if (alarm.repeatDaily) {
+                    "Diario"
+                } else {
+                    "Una vez"
+                }
+                Text("Repetir: $daysOfWeekText", style = MaterialTheme.typography.labelSmall)
+                
+                if (alarm.internetFallback) {
+                    val limitText = if (alarm.fallbackRetryLimitMinutes == -1) "Infinito" else "${alarm.fallbackRetryLimitMinutes} min"
+                    Text("Fallback internet: $limitText", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Editar")
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Eliminar")
             }

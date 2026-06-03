@@ -11,13 +11,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -44,6 +50,9 @@ fun CreateAlarmScreen(viewModel: RunnerViewModel, onDone: () -> Unit) {
     var hour by remember { mutableIntStateOf(8) }
     var minute by remember { mutableIntStateOf(0) }
     var repeatDaily by remember { mutableStateOf(false) }
+    var selectedDays by remember { mutableStateOf(setOf<Int>()) }
+    var internetFallback by remember { mutableStateOf(false) }
+    var fallbackLimitInfinite by remember { mutableStateOf(true) }
     var message by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -62,6 +71,7 @@ fun CreateAlarmScreen(viewModel: RunnerViewModel, onDone: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -96,20 +106,69 @@ fun CreateAlarmScreen(viewModel: RunnerViewModel, onDone: () -> Unit) {
                     TimePickerDialog(context, { _, h, m ->
                         hour = h
                         minute = m
-                    }, hour, minute, DateFormat.is24HourFormat(context)).show()
+                    }, hour, minute, true).show()
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Hora: ${"%02d".format(hour)}:${"%02d".format(minute)}")
             }
 
+            Text("Repetir los días (dejar vacío para una sola vez):", style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val daysOfWeekNames = listOf("Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
+                val daysOfWeekValues = listOf(1, 2, 3, 4, 5, 6, 7)
+                daysOfWeekValues.forEachIndexed { index, dayVal ->
+                    val isSelected = selectedDays.contains(dayVal)
+                    if (isSelected) {
+                        Button(
+                            onClick = { selectedDays = selectedDays - dayVal },
+                            contentPadding = PaddingValues(4.dp),
+                            modifier = Modifier.size(width = 44.dp, height = 36.dp)
+                        ) {
+                            Text(daysOfWeekNames[index], style = MaterialTheme.typography.bodySmall)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { selectedDays = selectedDays + dayVal },
+                            contentPadding = PaddingValues(4.dp),
+                            modifier = Modifier.size(width = 44.dp, height = 36.dp)
+                        ) {
+                            Text(daysOfWeekNames[index], style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = repeatDaily, onCheckedChange = { repeatDaily = it })
-                Text("Repetir todos los días")
+                Checkbox(checked = internetFallback, onCheckedChange = { internetFallback = it })
+                Text("Reintentar si falla el internet (Fallback)")
+            }
+
+            if (internetFallback) {
+                Column(modifier = Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Plazo de reintentos:", style = MaterialTheme.typography.bodyMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = fallbackLimitInfinite,
+                            onClick = { fallbackLimitInfinite = true }
+                        )
+                        Text("Indefinido (hasta que haya internet)", modifier = Modifier.padding(start = 4.dp))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = !fallbackLimitInfinite,
+                            onClick = { fallbackLimitInfinite = false }
+                        )
+                        Text("Límite de 30 minutos", modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
             }
 
             Text(
-                "La alarma solo ejecuta el script si hay internet. Si el teléfono está apagado, no se activa.",
+                "Si el teléfono está apagado al momento de la alarma, esta se reprogramará para su siguiente ocurrencia al encenderlo.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -123,7 +182,9 @@ fun CreateAlarmScreen(viewModel: RunnerViewModel, onDone: () -> Unit) {
                         message = "Completa nombre y script"
                         return@Button
                     }
-                    viewModel.createAlarm(name, scriptId, hour, minute, repeatDaily) { ok, msg ->
+                    val daysStr = selectedDays.sorted().joinToString(",")
+                    val fallbackLimit = if (fallbackLimitInfinite) -1 else 30
+                    viewModel.createAlarm(name, scriptId, hour, minute, daysStr, internetFallback, fallbackLimit) { ok, msg ->
                         message = msg
                         if (ok) onDone()
                     }

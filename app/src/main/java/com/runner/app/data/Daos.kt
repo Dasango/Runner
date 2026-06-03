@@ -29,7 +29,7 @@ interface AlarmDao {
     @Query("SELECT * FROM alarms ORDER BY triggerAtMillis ASC")
     fun observeAll(): Flow<List<AlarmEntity>>
 
-    @Query("SELECT * FROM alarms WHERE enabled = 1")
+    @Query("SELECT * FROM alarms WHERE enabled = 1 OR pendingFallback = 1")
     suspend fun getEnabled(): List<AlarmEntity>
 
     @Query("SELECT * FROM alarms WHERE id = :id")

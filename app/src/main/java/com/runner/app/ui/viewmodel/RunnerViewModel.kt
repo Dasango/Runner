@@ -81,16 +81,21 @@ class RunnerViewModel(
         scriptId: Long,
         hour: Int,
         minute: Int,
-        repeatDaily: Boolean,
+        daysOfWeek: String,
+        internetFallback: Boolean,
+        fallbackRetryLimitMinutes: Int,
         onResult: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch {
-            val triggerAt = nextTriggerMillis(hour, minute)
+            val triggerAt = AlarmScheduler.calculateNextTriggerTime(hour, minute, daysOfWeek)
             val alarm = AlarmEntity(
                 name = name,
                 scriptId = scriptId,
                 triggerAtMillis = triggerAt,
-                repeatDaily = repeatDaily
+                repeatDaily = false,
+                daysOfWeek = daysOfWeek,
+                internetFallback = internetFallback,
+                fallbackRetryLimitMinutes = fallbackRetryLimitMinutes
             )
             val id = database.alarmDao().insert(alarm)
             AlarmScheduler.schedule(getApplication(), id, triggerAt)
@@ -98,12 +103,66 @@ class RunnerViewModel(
         }
     }
 
+    suspend fun getAlarmById(id: Long): AlarmEntity? {
+        return database.alarmDao().getById(id)
+    }
+
+    fun updateAlarm(
+        id: Long,
+        name: String,
+        scriptId: Long,
+        hour: Int,
+        minute: Int,
+        daysOfWeek: String,
+        internetFallback: Boolean,
+        fallbackRetryLimitMinutes: Int,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val triggerAt = AlarmScheduler.calculateNextTriggerTime(hour, minute, daysOfWeek)
+            val existing = database.alarmDao().getById(id)
+            if (existing == null) {
+                onResult(false, "Alarma no encontrada")
+                return@launch
+            }
+            val alarm = existing.copy(
+                name = name,
+                scriptId = scriptId,
+                triggerAtMillis = triggerAt,
+                enabled = true,
+                daysOfWeek = daysOfWeek,
+                internetFallback = internetFallback,
+                fallbackRetryLimitMinutes = fallbackRetryLimitMinutes,
+                pendingFallback = false,
+                fallbackScheduledTime = 0L,
+                fallbackRetryCount = 0
+            )
+            database.alarmDao().insert(alarm)
+            AlarmScheduler.cancel(getApplication(), id)
+            AlarmScheduler.schedule(getApplication(), id, triggerAt)
+            onResult(true, "Alarma actualizada")
+        }
+    }
+
     fun toggleAlarm(alarm: AlarmEntity, enabled: Boolean) {
         viewModelScope.launch {
-            database.alarmDao().setEnabled(alarm.id, enabled)
             if (enabled) {
-                AlarmScheduler.schedule(getApplication(), alarm.id, alarm.triggerAtMillis)
+                val now = System.currentTimeMillis()
+                val nextTrigger = if (alarm.triggerAtMillis <= now) {
+                    val cal = Calendar.getInstance().apply { timeInMillis = alarm.triggerAtMillis }
+                    val hour = cal.get(Calendar.HOUR_OF_DAY)
+                    val minute = cal.get(Calendar.MINUTE)
+                    val days = if (alarm.daysOfWeek.isEmpty() && alarm.repeatDaily) "1,2,3,4,5,6,7" else alarm.daysOfWeek
+                    AlarmScheduler.calculateNextTriggerTime(hour, minute, days)
+                } else {
+                    alarm.triggerAtMillis
+                }
+                val updated = alarm.copy(enabled = true, triggerAtMillis = nextTrigger, pendingFallback = false)
+                database.alarmDao().insert(updated)
+                AlarmScheduler.schedule(getApplication(), alarm.id, nextTrigger)
             } else {
+                val updated = alarm.copy(enabled = false, pendingFallback = false)
+                database.alarmDao().insert(updated)
                 AlarmScheduler.cancel(getApplication(), alarm.id)
             }
         }

@@ -25,6 +25,7 @@ import androidx.navigation.navArgument
 import com.runner.app.data.RunnerDatabase
 import com.runner.app.ui.screens.AlarmsScreen
 import com.runner.app.ui.screens.CreateAlarmScreen
+import com.runner.app.ui.screens.EditAlarmScreen
 import com.runner.app.ui.screens.EditScriptScreen
 import com.runner.app.ui.screens.LogDetailScreen
 import com.runner.app.ui.screens.LogsScreen
@@ -38,6 +39,9 @@ sealed class Screen(val route: String, val label: String) {
     data object Scripts : Screen("scripts", "Scripts")
     data object Logs : Screen("logs", "Historial")
     data object CreateAlarm : Screen("create_alarm", "Nueva alarma")
+    data object EditAlarm : Screen("edit_alarm/{alarmId}", "Editar alarma") {
+        fun createRoute(alarmId: Long) = "edit_alarm/$alarmId"
+    }
     data object UploadScript : Screen("upload_script", "Subir script")
     data object EditScript : Screen("edit_script/{scriptId}", "Editar script") {
         fun createRoute(scriptId: Long) = "edit_script/$scriptId"
@@ -101,7 +105,8 @@ fun RunnerNavHost(database: RunnerDatabase) {
             composable(Screen.Alarms.route) {
                 AlarmsScreen(
                     viewModel = viewModel,
-                    onCreateAlarm = { navController.navigate(Screen.CreateAlarm.route) }
+                    onCreateAlarm = { navController.navigate(Screen.CreateAlarm.route) },
+                    onEditAlarm = { id -> navController.navigate(Screen.EditAlarm.createRoute(id)) }
                 )
             }
             composable(Screen.Scripts.route) {
@@ -131,6 +136,17 @@ fun RunnerNavHost(database: RunnerDatabase) {
             composable(Screen.CreateAlarm.route) {
                 CreateAlarmScreen(
                     viewModel = viewModel,
+                    onDone = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = Screen.EditAlarm.route,
+                arguments = listOf(navArgument("alarmId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val alarmId = backStackEntry.arguments?.getLong("alarmId") ?: 0L
+                EditAlarmScreen(
+                    viewModel = viewModel,
+                    alarmId = alarmId,
                     onDone = { navController.popBackStack() }
                 )
             }
